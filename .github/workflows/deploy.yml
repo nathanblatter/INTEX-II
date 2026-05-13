@@ -1,84 +1,16 @@
-# =============================================================================
-# deploy.yml — Build frontend + backend into a single Azure App Service
-#
-# Architecture:
-#   React (Vite) builds to dist/ → copied into .NET wwwroot/ → single App Service
-#   serves both static files and /api/* endpoints on one domain.
-#
-# Required GitHub Secrets:
-#   AZURE_WEBAPP_PUBLISH_PROFILE — Download from Azure Portal → App Service → Deployment Center
-#
-# Required GitHub Variables:
-#   AZURE_WEBAPP_NAME — Name of your Azure App Service (e.g. "kateri-app")
-#
-# Required App Service Configuration (set in Azure Portal → App Service → Environment variables):
-#   ConnectionStrings__DefaultConnection — PostgreSQL connection string
-#   FrontendUrl — https://kateri.byuisresearch.com (for CORS)
-# =============================================================================
-
-name: Deploy To Azure
-
+name: Deploy
 on:
-  workflow_dispatch:
   push:
     branches: [main]
-
+  workflow_dispatch:
 jobs:
   deploy:
-    name: Build & Deploy
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ── Frontend ──────────────────────────────────────────────
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
-        env:
-          VITE_API_BASE_URL: ""   # empty = same-origin requests to /api/*
-
-      # ── Backend ───────────────────────────────────────────────
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Publish backend
-        run: dotnet publish backend/Lighthouse.API/Lighthouse.API.csproj -c Release -o publish
-
-      # ── Merge frontend into backend wwwroot ───────────────────
-      - name: Copy frontend build into wwwroot
+      - name: Deploy
         run: |
-          mkdir -p publish/wwwroot
-          cp -r frontend/dist/* publish/wwwroot/
-
-      # ── Ship ML model files alongside the .NET app ───────────
-      # The controllers search for ../is455/ml-pipelines/models — placing the
-      # files at publish/is455/ml-pipelines/models keeps the relative paths happy
-      # on Azure (/home/site/wwwroot is the deploy root, so ../is455 = /home/site/is455).
-      - name: Copy ML models into publish output
-        run: |
-          mkdir -p publish/is455/ml-pipelines/models
-          cp is455/ml-pipelines/models/*.onnx publish/is455/ml-pipelines/models/ 2>/dev/null || true
-          cp is455/ml-pipelines/models/*.json publish/is455/ml-pipelines/models/ 2>/dev/null || true
-          ls -la publish/is455/ml-pipelines/models/
-
-      # ── Deploy ────────────────────────────────────────────────
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: publish
+          cd /Users/nathanblatter/Desktop/INTEX-II
+          git pull origin main
+          docker compose down
+          docker compose build --no-cache
+          docker compose up -d
