@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./is455/ml-pipelines/models:/app/is455/ml-pipelines/models
+    networks:
+      - default
+      - docker-services_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=host.docker.internal;Port=5432;Database=kateri;Username=postgres;Password=postgres"
+      FrontendUrl: "https://intex2.nathanblatter.com"
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      NotificationEmail__StaffNotifyTo: nzb22@byu.edu
+      NotificationEmail__SmtpHost: docker-services-postfix-1
+      NotificationEmail__SmtpPort: "25"
+      NotificationEmail__FromAddress: noreply@nathanblatter.com
+      NotificationEmail__UseSsl: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/8080' 2>/dev/null && exit 0 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 60s
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
+
+networks:
+  docker-services_default:
+    external: true
